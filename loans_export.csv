@@ -1,0 +1,4 @@
+ID,Name,Age,Principal,Interest Rate,Duration (months),Total Amount,Balance,Status,Date Issued,Monthly Payment
+1,"kkk",19,1500.00,1.00,6,1504.27,1504.27,Pending,2026-02-14,250.71
+2,"james",20,2000.00,2.00,6,2011.68,2011.68,Pending,2026-02-14,335.28
+3,"mwt",20,25000.00,2.00,12,25271.69,25271.69,Pending,2026-02-17,2105.97
