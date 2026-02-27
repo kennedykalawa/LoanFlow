@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>LoanFlow — Visual Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root {
+  --bg:#08090f; --surface:#0f1120; --surface2:#161929;
+  --border:rgba(255,255,255,0.07);
+  --accent:#00ffc8; --accent2:#7c6aff;
+  --red:#ff4d6d; --yellow:#ffd166; --green:#06d6a0; --blue:#4cc9f0;
+  --text:#dde4f0; --muted:#6b7394; --glow:rgba(0,255,200,0.18);
+  --sidebar-w:240px; --topbar-h:52px; --bnav-h:60px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html{scroll-behavior:smooth;}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,255,200,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,200,.018) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+
+/* Layout */
+.app{display:flex;min-height:100vh;position:relative;z-index:1;}
+.sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:300;transition:transform .3s ease;}
+.main{margin-left:var(--sidebar-w);flex:1;padding:2.2rem 2rem 2rem;min-height:100vh;}
+
+/* Sidebar */
+.logo{padding:1.5rem 1.4rem;border-bottom:1px solid var(--border);}
+.logo h1{font-size:1.4rem;font-weight:800;color:var(--accent);letter-spacing:.05em;text-shadow:0 0 24px var(--glow);}
+.logo p{font-size:.62rem;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.15em;margin-top:.2rem;}
+.nav{padding:1.1rem .7rem;flex:1;overflow-y:auto;}
+.nav-item{display:flex;align-items:center;gap:.75rem;padding:.7rem .9rem;border-radius:10px;cursor:pointer;color:var(--muted);font-size:.86rem;font-weight:600;transition:all .18s;margin-bottom:.22rem;border:1px solid transparent;user-select:none;}
+.nav-item:hover{color:var(--text);background:var(--surface2);}
+.nav-item.active{color:var(--accent);background:rgba(0,255,200,.07);border-color:rgba(0,255,200,.15);}
+.nav-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.95rem;background:var(--surface2);flex-shrink:0;}
+.nav-item.active .nav-icon{background:rgba(0,255,200,.12);}
+.sidebar-bottom{padding:1rem;border-top:1px solid var(--border);}
+.data-controls{display:flex;gap:.4rem;flex-direction:column;}
+.btn-sm{padding:.48rem .8rem;border-radius:8px;font-size:.73rem;font-weight:700;font-family:'Syne',sans-serif;cursor:pointer;border:1px solid;transition:all .18s;text-align:center;display:block;width:100%;}
+.btn-export{background:transparent;border-color:var(--accent);color:var(--accent);}
+.btn-export:hover{background:rgba(0,255,200,.1);}
+.btn-import{background:transparent;border-color:var(--muted);color:var(--muted);}
+.btn-import:hover{border-color:var(--text);color:var(--text);}
+.storage-bar{margin-top:.75rem;padding:.6rem .75rem;background:var(--surface2);border-radius:8px;border:1px solid var(--border);}
+.storage-bar p{font-size:.64rem;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.7;}
+.storage-bar span{color:var(--accent);}
+
+/* Mobile topbar */
+.topbar{display:none;position:fixed;top:0;left:0;right:0;height:var(--topbar-h);background:var(--surface);border-bottom:1px solid var(--border);z-index:400;align-items:center;padding:0 1rem;justify-content:space-between;}
+.topbar-logo{font-size:1rem;font-weight:800;color:var(--accent);}
+.topbar-actions{display:flex;gap:.4rem;}
+.icon-btn{width:34px;height:34px;border-radius:9px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.88rem;flex-shrink:0;}
+
+/* Bottom nav */
+.bottomnav{display:none;position:fixed;bottom:0;left:0;right:0;height:var(--bnav-h);background:var(--surface);border-top:1px solid var(--border);z-index:400;flex-direction:row;align-items:stretch;}
+.bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.14rem;cursor:pointer;color:var(--muted);font-size:.55rem;font-weight:700;letter-spacing:.04em;transition:all .18s;padding:.25rem .1rem;user-select:none;}
+.bnav-item.active{color:var(--accent);}
+.bnav-icon{font-size:1.2rem;line-height:1;}
+
+/* Sidebar overlay */
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:250;}
+.sidebar-overlay.open{display:block;}
+
+/* Pages */
+.page{display:none;animation:fadeUp .25s ease;}
+.page.active{display:block;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(7px);}to{opacity:1;transform:translateY(0);}}
+.page-header{margin-bottom:1.6rem;}
+.page-title{font-size:1.75rem;font-weight:800;color:var(--text);line-height:1.1;}
+.page-subtitle{color:var(--muted);font-size:.83rem;margin-top:.25rem;}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:.9rem;margin-bottom:1.4rem;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:1.1rem;position:relative;overflow:hidden;transition:all .22s;}
+.stat-card:hover{border-color:rgba(0,255,200,.2);transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.3);}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0;transition:.3s;}
+.stat-card:hover::before{opacity:1;}
+.stat-label{font-size:.64rem;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.45rem;}
+.stat-val{font-size:1.55rem;font-weight:800;color:var(--accent);font-family:'DM Mono',monospace;line-height:1;word-break:break-all;}
+.stat-val.red{color:var(--red);}.stat-val.yellow{color:var(--yellow);}.stat-val.green{color:var(--green);}.stat-val.blue{color:var(--blue);}
+.stat-sub{font-size:.7rem;color:var(--muted);margin-top:.35rem;}
+
+/* Charts */
+.charts-row{display:grid;grid-template-columns:1fr 1.5fr;gap:.9rem;margin-bottom:1.4rem;}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:1.3rem;margin-bottom:1.4rem;}
+.chart-title{font-size:.65rem;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.9rem;padding-bottom:.65rem;border-bottom:1px solid var(--border);}
+
+/* Buttons */
+.btn{padding:.62rem 1.2rem;border-radius:10px;font-weight:700;font-family:'Syne',sans-serif;font-size:.82rem;cursor:pointer;border:none;transition:all .18s;letter-spacing:.02em;white-space:nowrap;}
+.btn-primary{background:var(--accent);color:#08090f;box-shadow:0 3px 14px rgba(0,255,200,.2);}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 5px 20px rgba(0,255,200,.35);}
+.btn-danger{background:rgba(255,77,109,.1);color:var(--red);border:1px solid rgba(255,77,109,.28);}
+.btn-danger:hover{background:rgba(255,77,109,.18);}
+.btn-success{background:rgba(6,214,160,.1);color:var(--green);border:1px solid rgba(6,214,160,.28);}
+.btn-success:hover{background:rgba(6,214,160,.18);}
+.btn-outline{background:transparent;color:var(--muted);border:1px solid var(--border);}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent);}
+
+/* Filter bar */
+.filter-bar{display:flex;align-items:center;justify-content:space-between;gap:.7rem;margin-bottom:1rem;flex-wrap:wrap;}
+.filters{display:flex;gap:.55rem;align-items:center;flex:1;flex-wrap:wrap;}
+.search-box{flex:1;min-width:140px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:.58rem .9rem;color:var(--text);font-family:'Syne',sans-serif;font-size:.84rem;outline:none;transition:.18s;}
+.search-box::placeholder{color:var(--muted);}
+.search-box:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,255,200,.07);}
+.filter-select{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:.58rem .7rem;color:var(--text);font-family:'Syne',sans-serif;font-size:.8rem;outline:none;cursor:pointer;}
+.filter-select:focus{border-color:var(--accent);}
+
+/* Loan cards — desktop: 5 columns */
+.loan-cards{display:grid;gap:.65rem;}
+.loan-card{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:1rem 1.2rem;display:grid;grid-template-columns:40px 1fr 80px auto auto;align-items:center;gap:.9rem;transition:all .18s;cursor:pointer;}
+.loan-card:hover{border-color:rgba(0,255,200,.2);background:var(--surface2);}
+.loan-avatar{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.9rem;color:#fff;flex-shrink:0;}
+.loan-info .loan-name{font-weight:700;font-size:.9rem;margin-bottom:.12rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.loan-info .loan-meta{font-size:.68rem;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.loan-progress{flex-shrink:0;}
+.progress-label{font-size:.6rem;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:.22rem;display:flex;justify-content:space-between;}
+.progress-bar{height:4px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;}
+.progress-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent2),var(--accent));transition:width .5s ease;}
+.loan-amount{text-align:right;flex-shrink:0;}
+.loan-principal{font-weight:700;font-size:.9rem;font-family:'DM Mono',monospace;white-space:nowrap;}
+.loan-balance{font-size:.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:.1rem;white-space:nowrap;}
+.loan-badge{margin-top:.28rem;}
+.badge{display:inline-block;padding:.18rem .55rem;border-radius:20px;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-family:'DM Mono',monospace;}
+.badge-pending{background:rgba(255,209,102,.15);color:var(--yellow);}
+.badge-approved{background:rgba(76,201,240,.15);color:var(--blue);}
+.badge-rejected{background:rgba(255,77,109,.15);color:var(--red);}
+.badge-completed{background:rgba(6,214,160,.15);color:var(--green);}
+.loan-actions{display:flex;gap:.3rem;flex-shrink:0;}
+.action-btn{width:31px;height:31px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;transition:all .18s;flex-shrink:0;}
+.action-btn:hover{border-color:var(--accent);color:var(--accent);}
+.action-btn.pay:hover{border-color:var(--green);color:var(--green);}
+.action-btn.del:hover{border-color:var(--red);color:var(--red);}
+
+/* Modals */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:flex-end;justify-content:center;padding:0;opacity:0;pointer-events:none;transition:.22s;}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:20px 20px 0 0;padding:1.6rem;width:100%;max-width:100%;transform:translateY(40px);transition:.25s;max-height:92vh;overflow-y:auto;}
+.modal-overlay.open .modal{transform:translateY(0);}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.3rem;}
+.modal-title{font-size:1.1rem;font-weight:800;flex:1;padding-right:.5rem;}
+.modal-close{width:30px;height:30px;border-radius:8px;background:var(--surface2);border:none;color:var(--muted);cursor:pointer;font-size:1.05rem;display:flex;align-items:center;justify-content:center;transition:.18s;flex-shrink:0;}
+.modal-close:hover{color:var(--red);}
+
+/* Forms */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.85rem;}
+.form-group{display:flex;flex-direction:column;gap:.38rem;}
+.form-group.full{grid-column:1/-1;}
+label{font-size:.65rem;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;}
+.label-hint{font-size:.63rem;color:var(--muted);opacity:.7;font-weight:400;text-transform:none;letter-spacing:0;margin-left:.3rem;}
+input,select{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:.62rem .85rem;color:var(--text);font-family:'Syne',sans-serif;font-size:.87rem;outline:none;transition:.18s;width:100%;}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,255,200,.07);}
+input[type="range"]{padding:.3rem 0;background:transparent;border:none;box-shadow:none;accent-color:var(--accent);}
+.form-actions{display:flex;gap:.65rem;justify-content:flex-end;margin-top:1.3rem;flex-wrap:wrap;}
+.form-card{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:1.6rem;max-width:560px;}
+.calc-result{background:var(--surface2);border-radius:11px;padding:1.1rem;margin-top:1.1rem;border:1px solid var(--border);}
+.calc-result-label{font-size:.63rem;color:var(--accent);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.7rem;}
+.calc-result-row{display:flex;justify-content:space-between;padding:.38rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.82rem;}
+.calc-result-row:last-child{border:none;font-weight:800;color:var(--accent);}
+.range-val{font-family:'DM Mono',monospace;font-weight:700;color:var(--accent);}
+
+/* Detail */
+.detail-section{margin-bottom:1.1rem;}
+.detail-section-title{font-size:.63rem;color:var(--accent);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.65rem;padding-bottom:.45rem;border-bottom:1px solid var(--border);}
+.detail-row{display:flex;justify-content:space-between;align-items:center;padding:.38rem 0;border-bottom:1px solid rgba(255,255,255,.03);}
+.detail-key{font-size:.77rem;color:var(--muted);}
+.detail-val{font-size:.79rem;font-family:'DM Mono',monospace;font-weight:600;text-align:right;flex-shrink:0;margin-left:.5rem;}
+.payment-history{list-style:none;}
+.payment-item{display:flex;justify-content:space-between;align-items:center;padding:.48rem .75rem;border-radius:8px;background:var(--surface2);margin-bottom:.3rem;font-size:.77rem;gap:.5rem;}
+.payment-item .p-amount{font-family:'DM Mono',monospace;font-weight:700;color:var(--green);white-space:nowrap;}
+.payment-item .p-date{color:var(--muted);font-size:.68rem;font-family:'DM Mono',monospace;white-space:nowrap;}
+
+/* Confirm */
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:2000;display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;pointer-events:none;transition:.2s;}
+.confirm-overlay.open{opacity:1;pointer-events:all;}
+.confirm-box{background:var(--surface);border:1px solid rgba(255,77,109,.2);border-radius:18px;padding:1.8rem;max-width:340px;width:100%;text-align:center;}
+.confirm-box h3{font-size:1.05rem;font-weight:800;margin-bottom:.65rem;}
+.confirm-box p{color:var(--muted);font-size:.81rem;margin-bottom:1.2rem;line-height:1.65;}
+.confirm-actions{display:flex;gap:.6rem;justify-content:center;}
+
+/* Warn */
+.warn-box{margin-top:.75rem;padding:.65rem .9rem;border-radius:8px;background:rgba(255,209,102,.07);border:1px solid rgba(255,209,102,.2);color:var(--yellow);font-size:.77rem;display:none;line-height:1.5;}
+
+/* Toast */
+.toast-container{position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:.4rem;pointer-events:none;max-width:calc(100vw - 2rem);}
+.toast{background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:.7rem 1rem;font-size:.79rem;font-weight:600;transform:translateX(110%);transition:.3s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;gap:.55rem;box-shadow:0 8px 28px rgba(0,0,0,.4);}
+.toast.show{transform:translateX(0);}
+.toast.success{border-color:rgba(6,214,160,.3);color:var(--green);}
+.toast.error{border-color:rgba(255,77,109,.3);color:var(--red);}
+.toast.info{border-color:rgba(76,201,240,.3);color:var(--blue);}
+
+/* Empty */
+.empty{text-align:center;padding:3.2rem 1.5rem;color:var(--muted);}
+.empty-icon{font-size:2.6rem;margin-bottom:.7rem;}
+.empty h3{font-size:.95rem;color:var(--text);margin-bottom:.35rem;}
+.empty p{font-size:.8rem;line-height:1.65;}
+
+/* Info box */
+.info-box{background:rgba(0,255,200,.03);border:1px solid rgba(0,255,200,.1);border-radius:12px;padding:.95rem 1.05rem;font-size:.8rem;color:var(--muted);line-height:1.75;margin-top:1.2rem;}
+.info-box strong{color:var(--accent);}
+.info-box code{font-family:'DM Mono',monospace;color:var(--accent);font-size:.77rem;background:rgba(0,255,200,.07);padding:.1rem .3rem;border-radius:4px;}
+
+/* About page */
+.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.3rem;}
+.about-card{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:1.3rem;}
+.about-card-icon{font-size:1.8rem;margin-bottom:.7rem;}
+.about-card h3{font-size:.9rem;font-weight:700;margin-bottom:.5rem;color:var(--text);}
+.about-card p{font-size:.79rem;color:var(--muted);line-height:1.7;}
+.about-card .highlight{color:var(--accent);font-weight:700;}
+.about-card code{font-family:'DM Mono',monospace;color:var(--accent);font-size:.75rem;background:rgba(0,255,200,.07);padding:.1rem .3rem;border-radius:4px;}
+.section-title{font-size:.65rem;color:var(--accent);font-family:'DM Mono',monospace;letter-spacing:.12em;text-transform:uppercase;margin:1.4rem 0 .75rem;padding-bottom:.5rem;border-bottom:1px solid var(--border);}
+.steps{display:flex;flex-direction:column;gap:.55rem;}
+.step{display:flex;gap:.9rem;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:.9rem 1rem;}
+.step-num{width:28px;height:28px;border-radius:8px;background:rgba(0,255,200,.12);color:var(--accent);font-weight:800;font-size:.82rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'DM Mono',monospace;}
+.step-body h4{font-size:.85rem;font-weight:700;margin-bottom:.2rem;}
+.step-body p{font-size:.77rem;color:var(--muted);line-height:1.6;}
+.limit-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:.6rem;}
+.limit-table th{text-align:left;padding:.55rem .7rem;color:var(--accent);font-family:'DM Mono',monospace;font-size:.63rem;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--border);}
+.limit-table td{padding:.52rem .7rem;border-bottom:1px solid rgba(255,255,255,.04);color:var(--muted);font-size:.77rem;}
+.limit-table td:first-child{color:var(--text);font-weight:600;}
+.limit-table tr:last-child td{border-bottom:none;}
+
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:3px;}
+
+/* ═══ RESPONSIVE ═══ */
+@media(max-width:1100px){
+  .stats{grid-template-columns:1fr 1fr;}
+  .about-grid{grid-template-columns:1fr;}
+}
+
+/* Tablet / mobile */
+@media(max-width:860px){
+  .sidebar{transform:translateX(-100%);}
+  .sidebar.open{transform:translateX(0);box-shadow:6px 0 36px rgba(0,0,0,.65);}
+  .main{margin-left:0;padding:calc(var(--topbar-h) + 1.1rem) 1rem calc(var(--bnav-h) + 1rem);}
+  .topbar{display:flex;}
+  .bottomnav{display:flex;}
+  .charts-row{grid-template-columns:1fr;}
+  .page-title{font-size:1.45rem;}
+  .toast-container{left:1rem;right:1rem;}
+  .loan-card{grid-template-columns:38px 1fr auto auto;gap:.7rem;}
+  .loan-progress{display:none;}
+  .form-card{padding:1.2rem;}
+  /* Modals: bottom sheet stays but has max-height */
+  .modal{max-height:88vh;}
+}
+
+/* Small phones */
+@media(max-width:580px){
+  .main{padding-left:.85rem;padding-right:.85rem;}
+  .stats{grid-template-columns:1fr 1fr;}
+  .stat-val{font-size:1.3rem;}
+  .stat-card{padding:.9rem;}
+
+  /* Loan card: stacked layout */
+  .loan-card{
+    grid-template-columns:38px 1fr;
+    grid-template-rows:auto auto auto;
+    row-gap:.42rem;padding:.85rem .95rem;
+  }
+  .loan-avatar{grid-row:1;grid-column:1;}
+  .loan-info{grid-row:1;grid-column:2;}
+  .loan-progress{display:none;}
+  .loan-amount{grid-row:2;grid-column:1/-1;text-align:left;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;}
+  .loan-badge{margin-top:0;}
+  .loan-actions{grid-row:3;grid-column:1/-1;justify-content:flex-end;}
+
+  /* Filter bar */
+  .filter-bar{flex-direction:column;align-items:stretch;}
+  .filters{flex-direction:column;}
+  .search-box,.filter-select{width:100%;min-width:unset;}
+  .filter-bar>.btn{width:100%;}
+
+  /* Forms */
+  .form-grid{grid-template-columns:1fr;}
+  .form-group.full{grid-column:1;}
+  .form-actions{justify-content:stretch;}
+  .form-actions .btn{flex:1;text-align:center;}
+
+  /* Modals */
+  .modal{padding:1.2rem;border-radius:18px 18px 0 0;}
+  .confirm-actions{flex-direction:column;}
+  .confirm-actions .btn{width:100%;}
+  .about-grid{grid-template-columns:1fr;}
+  .limit-table{font-size:.72rem;}
+  .limit-table th,.limit-table td{padding:.42rem .5rem;}
+}
+
+@media(max-width:360px){
+  .stats{grid-template-columns:1fr;}
+  .main{padding-left:.65rem;padding-right:.65rem;}
+  .stat-val{font-size:1.5rem;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="logo"><h1>LOANFLOW</h1><p>VISUAL MANAGER</p></div>
+    <nav class="nav">
+      <div class="nav-item active" data-page="dashboard"><div class="nav-icon">📊</div><span>Dashboard</span></div>
+      <div class="nav-item" data-page="loans"><div class="nav-icon">📋</div><span>All Loans</span></div>
+      <div class="nav-item" data-page="add"><div class="nav-icon">➕</div><span>Add Loan</span></div>
+      <div class="nav-item" data-page="calculator"><div class="nav-icon">🧮</div><span>Calculator</span></div>
+      <div class="nav-item" data-page="about"><div class="nav-icon">ℹ️</div><span>How It Works</span></div>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="data-controls">
+        <button class="btn-sm btn-export" onclick="exportCSV()">⬇ Export CSV</button>
+        <label class="btn-sm btn-import" style="cursor:pointer;">⬆ Import CSV<input type="file" accept=".csv" style="display:none" onchange="importCSV(this)"></label>
+      </div>
+      <div class="storage-bar">
+        <p>💾 <span>Browser localStorage</span></p>
+        <p>📦 Used: <span id="storageUsed">—</span></p>
+        <p>🔢 Cap: <span>~5 MB (~10k loans)</span></p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- TOPBAR (mobile) -->
+  <div class="topbar">
+    <div class="topbar-logo">⚡ LOANFLOW</div>
+    <div class="topbar-actions">
+      <button class="icon-btn" onclick="exportCSV()" title="Export">⬇</button>
+      <label class="icon-btn" style="cursor:pointer;" title="Import">⬆<input type="file" accept=".csv" style="display:none" onchange="importCSV(this)"></label>
+      <button class="icon-btn" onclick="openSidebar()">☰</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header"><div class="page-title">Overview</div><div class="page-subtitle">Your complete loan portfolio at a glance</div></div>
+      <div class="stats">
+        <div class="stat-card"><div class="stat-label">Total Loans</div><div class="stat-val blue" id="s-total">0</div><div class="stat-sub">Records saved</div></div>
+        <div class="stat-card"><div class="stat-label">Total Principal</div><div class="stat-val" id="s-principal">$0</div><div class="stat-sub">Capital issued</div></div>
+        <div class="stat-card"><div class="stat-label">Outstanding</div><div class="stat-val yellow" id="s-outstanding">$0</div><div class="stat-sub">Yet to collect</div></div>
+        <div class="stat-card"><div class="stat-label">Collected</div><div class="stat-val green" id="s-collected">$0</div><div class="stat-sub">Payments received</div></div>
+      </div>
+      <div class="charts-row">
+        <div class="chart-card" style="margin-bottom:0;"><div class="chart-title">Status Breakdown</div><canvas id="statusChart"></canvas></div>
+        <div class="chart-card" style="margin-bottom:0;"><div class="chart-title">Financial Overview</div><canvas id="financialChart"></canvas></div>
+      </div>
+      <div class="chart-card"><div class="chart-title">Balance vs Monthly EMI per Loan (first 25)</div><canvas id="timelineChart"></canvas></div>
+    </div>
+
+    <!-- ALL LOANS -->
+    <div class="page" id="page-loans">
+      <div class="page-header"><div class="page-title">All Loans</div><div class="page-subtitle">Tap a card to view details · 💳 pay · 🔄 cycle status · 🗑 delete</div></div>
+      <div class="filter-bar">
+        <div class="filters">
+          <input class="search-box" id="searchInput" placeholder="🔍  Search name or ID…" oninput="renderLoans()">
+          <select class="filter-select" id="statusFilter" onchange="renderLoans()">
+            <option value="">All Statuses</option>
+            <option>Pending</option><option>Approved</option><option>Rejected</option><option>Completed</option>
+          </select>
+          <select class="filter-select" id="sortBy" onchange="renderLoans()">
+            <option value="id">Sort: ID</option>
+            <option value="name">Name A–Z</option>
+            <option value="principal">Principal ↓</option>
+            <option value="balance">Balance ↓</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="showPage('add')">+ Add Loan</button>
+      </div>
+      <div class="loan-cards" id="loanList"></div>
+    </div>
+
+    <!-- ADD LOAN -->
+    <div class="page" id="page-add">
+      <div class="page-header"><div class="page-title">Add New Loan</div><div class="page-subtitle">EMI and totals calculate live as you type</div></div>
+      <div class="form-card">
+        <div class="form-grid">
+          <div class="form-group full"><label>Borrower Full Name</label><input type="text" id="f-name" placeholder="e.g. Jane Wanjiku" autocomplete="off"></div>
+          <div class="form-group"><label>Age <span class="label-hint">(18–100)</span></label><input type="number" id="f-age" placeholder="25" min="18" max="100"></div>
+          <div class="form-group"><label>Status</label><select id="f-status"><option value="Pending">Pending</option><option value="Approved">Approved</option><option value="Rejected">Rejected</option><option value="Completed">Completed</option></select></div>
+          <div class="form-group"><label>Principal ($)</label><input type="number" id="f-principal" placeholder="10000" min="100" oninput="calcPreview()"></div>
+          <div class="form-group"><label>Interest Rate <span class="label-hint">(%/year)</span></label><input type="number" id="f-rate" placeholder="12" min="0" max="100" step="0.1" oninput="calcPreview()"></div>
+          <div class="form-group"><label>Duration <span class="label-hint">(months)</span></label><input type="number" id="f-duration" placeholder="24" min="1" max="360" oninput="calcPreview()"></div>
+          <div class="form-group"><label>Date Issued</label><input type="date" id="f-date"></div>
+        </div>
+        <div class="calc-result" id="addPreview" style="display:none;">
+          <div class="calc-result-label">📊 Live Preview</div>
+          <div class="calc-result-row"><span>Monthly Payment (EMI)</span><span id="pv-monthly" class="range-val">—</span></div>
+          <div class="calc-result-row"><span>Total Repayable</span><span id="pv-total">—</span></div>
+          <div class="calc-result-row"><span>Total Interest Cost</span><span id="pv-interest">—</span></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-outline" onclick="clearAddForm()">Clear</button>
+          <button class="btn btn-primary" onclick="addLoan()">💾 Save Loan</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CALCULATOR -->
+    <div class="page" id="page-calculator">
+      <div class="page-header"><div class="page-title">Loan Calculator</div><div class="page-subtitle">Estimate before committing — then send values straight to Add Loan</div></div>
+      <div class="form-card">
+        <div class="form-grid">
+          <div class="form-group"><label>Principal ($)</label><input type="number" id="c-principal" placeholder="50000" oninput="updateCalc()"></div>
+          <div class="form-group"><label>Interest Rate <span class="label-hint">(%/year)</span></label><input type="number" id="c-rate" placeholder="10" step="0.1" oninput="updateCalc()"></div>
+          <div class="form-group full"><label>Duration: <span class="range-val" id="c-dur-label">24 months</span></label><input type="range" id="c-duration" min="1" max="360" value="24" oninput="updateCalc()"></div>
+        </div>
+        <div class="calc-result" id="calcResult" style="display:none;">
+          <div class="calc-result-label">📊 Results</div>
+          <div class="calc-result-row"><span>Monthly Payment (EMI)</span><span class="range-val" id="c-monthly">—</span></div>
+          <div class="calc-result-row"><span>Total Repayable</span><span id="c-total">—</span></div>
+          <div class="calc-result-row"><span>Total Interest</span><span id="c-interest">—</span></div>
+          <div class="calc-result-row"><span>Effective Annual Cost</span><span id="c-eac">—</span></div>
+        </div>
+        <div style="margin-top:1.1rem;"><button class="btn btn-primary" onclick="useCalcValues()">Use These Values →</button></div>
+      </div>
+      <div class="info-box">
+        <strong>EMI Formula</strong> (same as the C program):<br>
+        <code>EMI = P × r(1+r)ⁿ / ((1+r)ⁿ − 1)</code><br>
+        where <code>P</code> = principal · <code>r</code> = monthly rate · <code>n</code> = months.<br>
+        If rate = 0%, EMI = Principal ÷ months (equal split, no interest).
+      </div>
+    </div>
+
+    <!-- <!-- HOW IT WORKS 
+    <div class="page" id="page-about">
+      <div class="page-header"><div class="page-title">How It Works</div><div class="page-subtitle">Storage, limits, and how this connects to your original C program</div></div>
+
+      <div class="section-title">What was built & why</div>
+      <div class="about-grid">
+        <div class="about-card">
+          <div class="about-card-icon">🖥️</div>
+          <h3>Original: C Program (CLI)</h3>
+          <p>Your <code>loan_management_improved.c</code> runs in a terminal showing numbered menus (1–9). You type numbers to navigate. Data is saved to <code>loans.txt</code> on your computer. Powerful, but requires a terminal and technical knowledge.</p>
+        </div>
+        <div class="about-card">
+          <div class="about-card-icon">🌐</div>
+          <h3>New: Visual HTML App</h3>
+          <p>This page <span class="highlight">replaces the CLI entirely</span>. Every C menu option — add, view, pay, update status, export — is now a button, form, or card. Open it in any browser, on any device. <span class="highlight">No terminal needed.</span></p>
+        </div>
+      </div>
+
+      <div class="section-title">How data is stored</div>
+      <div class="about-card" style="margin-bottom:1rem;">
+        <div class="about-card-icon">💾</div>
+        <h3>Browser localStorage — no server or internet needed</h3>
+        <p>All loan records are saved inside your browser using <strong>localStorage</strong>. This is a built-in browser storage that works like a tiny database on your device.</p><br>
+        <p>✅ <span class="highlight">Fully offline</span> — works without internet once the page is loaded.</p>
+        <p>✅ <span class="highlight">No server or database</span> — nothing is sent anywhere.</p>
+        <p>✅ <span class="highlight">Survives browser restarts</span> — data persists until you clear browser data.</p>
+        <p>⚠️ <span style="color:var(--yellow);">Tied to this browser on this device</span> — different browser or phone = starts fresh.</p>
+        <p>⚠️ <span style="color:var(--yellow);">Clearing browser data deletes loans</span> — always Export CSV first as a backup.</p>
+      </div>
+
+      <div class="section-title">Storage limits</div>
+      <div class="about-card" style="margin-bottom:1rem;">
+        <table class="limit-table">
+          <thead><tr><th>What</th><th>Limit</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>Browser localStorage</td><td>~5 MB per site</td><td>Standard in Chrome, Firefox, Safari, Edge</td></tr>
+            <tr><td>Size per loan record</td><td>~400–600 bytes</td><td>Includes name, all figures, payment history</td></tr>
+            <tr><td>Estimated max loans</td><td>~8,000 – 12,000</td><td>Depends on payment history length</td></tr>
+            <tr><td>C program hard limit</td><td>100 loans</td><td><code>#define MAX_LOANS 100</code> in the C source</td></tr>
+            <tr><td>This app limit</td><td>~10,000+</td><td>Only limited by browser localStorage (~5 MB)</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:.8rem;font-size:.74rem;color:var(--muted);">💡 The storage meter in the sidebar shows how much space you're currently using in real time.</p>
+      </div>
+
+      <div class="section-title">Step-by-step guide</div>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><h4>Add a Loan</h4><p>Go to <strong>Add Loan</strong>. Fill in the borrower's name, age, loan amount, interest rate, and duration. The monthly EMI calculates automatically as you type. Press <strong>Save Loan</strong>.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><h4>View & Manage Loans</h4><p>Go to <strong>All Loans</strong>. Each card shows a repayment progress bar and status badge. Use the search box and filters to find specific loans. <strong>Tap any card</strong> to see the full details and payment history.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><h4>Record a Payment</h4><p>Click the <strong>💳 button</strong> on any loan card. Enter the amount and date. If the payment fully covers the balance, the loan is automatically marked <strong>Completed</strong>.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><h4>Change Loan Status</h4><p>Click <strong>🔄</strong> to cycle through: <span style="color:var(--yellow)">Pending</span> → <span style="color:var(--blue)">Approved</span> → <span style="color:var(--red)">Rejected</span> → <span style="color:var(--green)">Completed</span> → back to Pending.</p></div></div>
+        <div class="step"><div class="step-num">5</div><div class="step-body"><h4>Backup (Export CSV)</h4><p>Click <strong>⬇ Export CSV</strong> in the sidebar (or the ⬇ button on mobile). Downloads <code>loans_export_YYYY-MM-DD.csv</code> — same column format as the C program, so it can be imported back.</p></div></div>
+        <div class="step"><div class="step-num">6</div><div class="step-body"><h4>Restore / Import from C Program</h4><p>Run option 8 in the C program to get <code>loans_export.csv</code>, then click <strong>⬆ Import CSV</strong> here. All records load instantly.</p></div></div>
+      </div>
+
+      <div class="section-title">C program menu → this app</div>
+      <div class="about-card">
+        <table class="limit-table">
+          <thead><tr><th>C Menu Option</th><th>This App</th></tr></thead>
+          <tbody>
+            <tr><td>1. Add New Loan</td><td>➕ Add Loan page</td></tr>
+            <tr><td>2. View All Loans</td><td>📋 All Loans page</td></tr>
+            <tr><td>3. Search Loan</td><td>🔍 Search box on All Loans</td></tr>
+            <tr><td>4. Make Repayment</td><td>💳 Pay button on each loan card</td></tr>
+            <tr><td>5. Update Loan Status</td><td>🔄 button or detail modal</td></tr>
+            <tr><td>6. Pending Balances</td><td>Filter → "Pending" on All Loans</td></tr>
+            <tr><td>7. View Statistics</td><td>📊 Dashboard with live charts</td></tr>
+            <tr><td>8. Export to CSV</td><td>⬇ Export CSV button</td></tr>
+            <tr><td>9. Save and Exit</td><td>Auto-saves on every action — no manual save needed</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div> -->
+
+  </main>
+
+  <!-- BOTTOM NAV (mobile) -->
+  <nav class="bottomnav" id="bottomNav">
+    <div class="bnav-item active" data-page="dashboard"><div class="bnav-icon">📊</div>Dashboard</div>
+    <div class="bnav-item" data-page="loans"><div class="bnav-icon">📋</div>Loans</div>
+    <div class="bnav-item" data-page="add"><div class="bnav-icon">➕</div>Add</div>
+    <div class="bnav-item" data-page="calculator"><div class="bnav-icon">🧮</div>Calc</div>
+    <div class="bnav-item" data-page="about"><div class="bnav-icon">ℹ️</div>About</div>
+  </nav>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<!-- PAY MODAL -->
+<div class="modal-overlay" id="payModal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title">💳 Record Payment</div><button class="modal-close" onclick="closeModal('payModal')">✕</button></div>
+    <div class="detail-section">
+      <div class="detail-section-title">Loan Info</div>
+      <div class="detail-row"><span class="detail-key">Borrower</span><span class="detail-val" id="pay-name">—</span></div>
+      <div class="detail-row"><span class="detail-key">Current Balance</span><span class="detail-val" id="pay-balance">—</span></div>
+      <div class="detail-row"><span class="detail-key">Suggested Monthly</span><span class="detail-val" id="pay-monthly">—</span></div>
+    </div>
+    <div class="form-group"><label>Payment Amount ($)</label><input type="number" id="pay-amount" placeholder="Enter amount…" step="0.01" min="0.01" oninput="checkPayWarning()"></div>
+    <div class="form-group" style="margin-top:.85rem;"><label>Payment Date</label><input type="date" id="pay-date"></div>
+    <div class="warn-box" id="pay-warning">⚠ Exceeds remaining balance — loan will be marked <strong>Completed</strong> and overpayment is ignored.</div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal('payModal')">Cancel</button>
+      <button class="btn btn-success" onclick="submitPayment()">✅ Record Payment</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="detail-title">Loan Details</div><button class="modal-close" onclick="closeModal('detailModal')">✕</button></div>
+    <div id="detailBody"></div>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE -->
+<div class="confirm-overlay" id="confirmDel">
+  <div class="confirm-box">
+    <div style="font-size:2rem;margin-bottom:.65rem;">🗑️</div>
+    <h3>Delete This Loan?</h3>
+    <p>This permanently removes the loan record and all payment history. It cannot be undone.</p>
+    <div class="confirm-actions">
+      <button class="btn btn-outline" onclick="closeModal('confirmDel')">Cancel</button>
+      <button class="btn btn-danger" id="confirmDelBtn">Yes, Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let loans = [], nextId = 1, charts = {}, activeId = null;
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem('loanflow_loans');
+    loans  = raw ? JSON.parse(raw) : [];
+    nextId = parseInt(localStorage.getItem('loanflow_nextId') || '1');
+  } catch(e) { loans = []; nextId = 1; }
+}
+
+function save() {
+  try {
+    localStorage.setItem('loanflow_loans', JSON.stringify(loans));
+    localStorage.setItem('loanflow_nextId', String(nextId));
+    updateStorageInfo();
+  } catch(e) { toast('Storage full — export your data first', 'error'); }
+}
+
+function updateStorageInfo() {
+  try {
+    const raw = localStorage.getItem('loanflow_loans') || '';
+    const kb  = (new Blob([raw]).size / 1024).toFixed(1);
+    const el  = document.getElementById('storageUsed');
+    if (el) el.textContent = `${kb} KB / ~5,000 KB`;
+  } catch(e){}
+}
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item, .bnav-item').forEach(n => n.classList.toggle('active', n.dataset.page === name));
+  document.getElementById('page-' + name).classList.add('active');
+  if (name === 'dashboard') updateDashboard();
+  if (name === 'loans')     renderLoans();
+  closeSidebar();
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('.nav-item, .bnav-item').forEach(el => el.addEventListener('click', () => showPage(el.dataset.page)));
+
+function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebarOverlay').classList.add('open'); }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('open'); }
+function openModal(id)  { document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); document.body.style.overflow=''; }
+
+function toast(msg, type='info') {
+  const icons = {success:'✅', error:'❌', info:'ℹ️'};
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+  document.getElementById('toasts').appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 400); }, 3200);
+}
+
+function fmt(n) {
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return '$' + (n/1e3).toFixed(1) + 'K';
+  return '$' + n.toFixed(2);
+}
+function fmtFull(n) { return '$' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function initials(name) { return name.trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,2)||'?'; }
+function today() { return new Date().toISOString().split('T')[0]; }
+
+// EMI — same formula as C program: P × r(1+r)^n / ((1+r)^n − 1)
+function calcEMI(principal, annualRate, months) {
+  if (!principal || !months) return 0;
+  if (!annualRate) return principal / months;
+  const r = annualRate / 100 / 12;
+  return principal * r * Math.pow(1+r,months) / (Math.pow(1+r,months) - 1);
+}
+
+function updateDashboard() {
+  const principal   = loans.reduce((s,l)=>s+l.principal,0);
+  const outstanding = loans.reduce((s,l)=>s+l.balance,0);
+  const collected   = loans.reduce((s,l)=>s+(l.totalAmount-l.balance),0);
+  document.getElementById('s-total').textContent       = loans.length;
+  document.getElementById('s-principal').textContent   = fmt(principal);
+  document.getElementById('s-outstanding').textContent = fmt(outstanding);
+  document.getElementById('s-collected').textContent   = fmt(collected);
+  drawStatusChart(); drawFinancialChart(); drawTimelineChart();
+  updateStorageInfo();
+}
+
+function drawStatusChart() {
+  const ctx = document.getElementById('statusChart').getContext('2d');
+  if (charts.status) charts.status.destroy();
+  const c = {Pending:0,Approved:0,Rejected:0,Completed:0};
+  loans.forEach(l => { c[l.status] = (c[l.status]||0)+1; });
+  charts.status = new Chart(ctx, {
+    type:'doughnut',
+    data:{labels:Object.keys(c),datasets:[{data:Object.values(c),
+      backgroundColor:['rgba(255,209,102,.75)','rgba(76,201,240,.75)','rgba(255,77,109,.75)','rgba(6,214,160,.75)'],
+      borderColor:['#ffd166','#4cc9f0','#ff4d6d','#06d6a0'],borderWidth:2}]},
+    options:{responsive:true,plugins:{legend:{position:'bottom',labels:{color:'#dde4f0',font:{family:"'DM Mono',monospace",size:10},padding:10}}}}
+  });
+}
+
+function drawFinancialChart() {
+  const ctx = document.getElementById('financialChart').getContext('2d');
+  if (charts.fin) charts.fin.destroy();
+  const p = loans.reduce((s,l)=>s+l.principal,0);
+  const o = loans.reduce((s,l)=>s+l.balance,0);
+  const c = loans.reduce((s,l)=>s+(l.totalAmount-l.balance),0);
+  charts.fin = new Chart(ctx,{
+    type:'bar',
+    data:{labels:['Principal','Collected','Outstanding'],datasets:[{data:[p,c,o],
+      backgroundColor:['rgba(0,255,200,.5)','rgba(6,214,160,.5)','rgba(255,209,102,.5)'],
+      borderColor:['#00ffc8','#06d6a0','#ffd166'],borderWidth:2,borderRadius:6}]},
+    options:{responsive:true,plugins:{legend:{display:false}},
+      scales:{y:{beginAtZero:true,ticks:{color:'#6b7394',callback:v=>'$'+v.toLocaleString(),font:{family:"'DM Mono',monospace",size:9}},grid:{color:'rgba(255,255,255,.04)'}},
+              x:{ticks:{color:'#dde4f0',font:{family:"'DM Mono',monospace",size:10}},grid:{display:false}}}}
+  });
+}
+
+function drawTimelineChart() {
+  const ctx = document.getElementById('timelineChart').getContext('2d');
+  if (charts.tl) charts.tl.destroy();
+  const sorted = [...loans].sort((a,b)=>a.id-b.id).slice(0,25);
+  charts.tl = new Chart(ctx,{
+    type:'bar',
+    data:{labels:sorted.map(l=>`#${l.id} ${l.name.split(' ')[0]}`),
+      datasets:[
+        {label:'Balance',data:sorted.map(l=>l.balance),backgroundColor:'rgba(255,209,102,.5)',borderColor:'#ffd166',borderWidth:2,borderRadius:4},
+        {label:'Monthly EMI',data:sorted.map(l=>l.monthlyPayment),backgroundColor:'rgba(0,255,200,.5)',borderColor:'#00ffc8',borderWidth:2,borderRadius:4}
+      ]},
+    options:{responsive:true,
+      plugins:{legend:{position:'top',labels:{color:'#dde4f0',font:{family:"'DM Mono',monospace",size:10},padding:10}}},
+      scales:{y:{beginAtZero:true,ticks:{color:'#6b7394',callback:v=>'$'+v.toLocaleString(),font:{family:"'DM Mono',monospace",size:9}},grid:{color:'rgba(255,255,255,.04)'}},
+              x:{ticks:{color:'#6b7394',font:{family:"'DM Mono',monospace",size:9},maxRotation:45},grid:{display:false}}}}
+  });
+}
+
+const gradients=[['#7c6aff','#4cc9f0'],['#00ffc8','#7c6aff'],['#ff4d6d','#ffd166'],['#06d6a0','#4cc9f0'],['#ffd166','#ff4d6d'],['#4cc9f0','#06d6a0']];
+
+function renderLoans() {
+  const search  = document.getElementById('searchInput').value.toLowerCase();
+  const statusF = document.getElementById('statusFilter').value;
+  const sortK   = document.getElementById('sortBy').value;
+  let filtered  = loans.filter(l=>(l.name.toLowerCase().includes(search)||String(l.id).includes(search))&&(!statusF||l.status===statusF));
+  if      (sortK==='name')      filtered.sort((a,b)=>a.name.localeCompare(b.name));
+  else if (sortK==='principal') filtered.sort((a,b)=>b.principal-a.principal);
+  else if (sortK==='balance')   filtered.sort((a,b)=>b.balance-a.balance);
+  else                           filtered.sort((a,b)=>a.id-b.id);
+  const container = document.getElementById('loanList');
+  if (!filtered.length) {
+    container.innerHTML=`<div class="empty"><div class="empty-icon">📭</div><h3>No loans found</h3><p>Try changing the search or filter, or add a new loan.</p></div>`;
+    return;
+  }
+  container.innerHTML = filtered.map(l => {
+    const pct  = l.totalAmount>0?Math.round(((l.totalAmount-l.balance)/l.totalAmount)*100):0;
+    const [c1,c2] = gradients[l.id%gradients.length];
+    return `
+    <div class="loan-card" onclick="viewLoan(${l.id})">
+      <div class="loan-avatar" style="background:linear-gradient(135deg,${c1},${c2})">${initials(l.name)}</div>
+      <div class="loan-info">
+        <div class="loan-name">${l.name}</div>
+        <div class="loan-meta">ID #${l.id} · Age ${l.age} · ${l.interestRate}%/yr · ${l.duration}mo · ${l.dateIssued}</div>
+      </div>
+      <div class="loan-progress">
+        <div class="progress-label"><span>${pct}%</span><span>paid</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="loan-amount">
+        <div class="loan-principal">${fmtFull(l.principal)}</div>
+        <div class="loan-balance">Bal: ${fmtFull(l.balance)}</div>
+        <div class="loan-badge"><span class="badge badge-${l.status.toLowerCase()}">${l.status}</span></div>
+      </div>
+      <div class="loan-actions" onclick="event.stopPropagation()">
+        <button class="action-btn pay" title="Record Payment" onclick="openPayModal(${l.id})">💳</button>
+        <button class="action-btn" title="Cycle Status" onclick="cycleStatus(${l.id})">🔄</button>
+        <button class="action-btn del" title="Delete" onclick="confirmDelete(${l.id})">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function viewLoan(id) {
+  const l = loans.find(x=>x.id===id);
+  if (!l) return;
+  const pct = l.totalAmount>0?Math.round(((l.totalAmount-l.balance)/l.totalAmount)*100):0;
+  const payments = l.payments||[];
+  document.getElementById('detail-title').textContent = `📄 ${l.name}`;
+  document.getElementById('detailBody').innerHTML = `
+    <div class="detail-section"><div class="detail-section-title">Borrower</div>
+      <div class="detail-row"><span class="detail-key">Loan ID</span><span class="detail-val">#${l.id}</span></div>
+      <div class="detail-row"><span class="detail-key">Name</span><span class="detail-val">${l.name}</span></div>
+      <div class="detail-row"><span class="detail-key">Age</span><span class="detail-val">${l.age}</span></div>
+      <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val"><span class="badge badge-${l.status.toLowerCase()}">${l.status}</span></span></div>
+      <div class="detail-row"><span class="detail-key">Date Issued</span><span class="detail-val">${l.dateIssued}</span></div>
+    </div>
+    <div class="detail-section"><div class="detail-section-title">Financials</div>
+      <div class="detail-row"><span class="detail-key">Principal</span><span class="detail-val">${fmtFull(l.principal)}</span></div>
+      <div class="detail-row"><span class="detail-key">Interest Rate</span><span class="detail-val">${l.interestRate}%/yr</span></div>
+      <div class="detail-row"><span class="detail-key">Duration</span><span class="detail-val">${l.duration} months</span></div>
+      <div class="detail-row"><span class="detail-key">Monthly EMI</span><span class="detail-val" style="color:var(--accent)">${fmtFull(l.monthlyPayment)}</span></div>
+      <div class="detail-row"><span class="detail-key">Total Repayable</span><span class="detail-val">${fmtFull(l.totalAmount)}</span></div>
+      <div class="detail-row"><span class="detail-key">Balance Remaining</span><span class="detail-val" style="color:var(--yellow)">${fmtFull(l.balance)}</span></div>
+      <div class="detail-row"><span class="detail-key">Total Collected</span><span class="detail-val" style="color:var(--green)">${fmtFull(l.totalAmount-l.balance)}</span></div>
+    </div>
+    <div class="detail-section"><div class="detail-section-title">Repayment Progress</div>
+      <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:.38rem;"><span>${pct}% paid</span><span>${100-pct}% remaining</span></div>
+      <div class="progress-bar" style="height:9px;border-radius:5px;"><div class="progress-fill" style="width:${pct}%"></div></div>
+    </div>
+    <div class="detail-section"><div class="detail-section-title">Payment History (${payments.length})</div>
+      ${payments.length===0?'<p style="color:var(--muted);font-size:.8rem;">No payments recorded yet.</p>'
+        :`<ul class="payment-history">${payments.map(p=>`<li class="payment-item"><span>Payment</span><span class="p-date">${p.date}</span><span class="p-amount">+${fmtFull(p.amount)}</span></li>`).join('')}</ul>`}
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-success" onclick="closeModal('detailModal');openPayModal(${l.id})">💳 Pay</button>
+      <button class="btn btn-danger" onclick="closeModal('detailModal');confirmDelete(${l.id})">🗑 Delete</button>
+    </div>`;
+  openModal('detailModal');
+}
+
+function openPayModal(id) {
+  activeId = id;
+  const l = loans.find(x=>x.id===id);
+  if (!l) return;
+  document.getElementById('pay-name').textContent    = l.name;
+  document.getElementById('pay-balance').textContent = fmtFull(l.balance);
+  document.getElementById('pay-monthly').textContent = fmtFull(l.monthlyPayment);
+  document.getElementById('pay-amount').value        = l.monthlyPayment.toFixed(2);
+  document.getElementById('pay-date').value          = today();
+  document.getElementById('pay-warning').style.display = 'none';
+  openModal('payModal');
+}
+
+function checkPayWarning() {
+  const l = loans.find(x=>x.id===activeId);
+  if (!l) return;
+  const amt = parseFloat(document.getElementById('pay-amount').value)||0;
+  document.getElementById('pay-warning').style.display = amt>l.balance?'block':'none';
+}
+
+function submitPayment() {
+  const l = loans.find(x=>x.id===activeId);
+  if (!l) return;
+  const amt  = parseFloat(document.getElementById('pay-amount').value);
+  const date = document.getElementById('pay-date').value;
+  if (!amt||amt<=0) { toast('Enter a valid payment amount','error'); return; }
+  if (!date)        { toast('Select a payment date','error'); return; }
+  if (l.balance<=0) { toast('Loan is already fully paid','info'); closeModal('payModal'); return; }
+  const actual = Math.min(amt, l.balance);
+  l.balance = Math.max(0, l.balance - actual);
+  if (!l.payments) l.payments = [];
+  l.payments.push({amount:actual, date});
+  if (l.balance < 0.01) { l.balance=0; l.status='Completed'; toast('🎉 Loan fully repaid! Marked as Completed','success'); }
+  else { toast(`Payment of ${fmtFull(actual)} recorded`,'success'); }
+  save(); closeModal('payModal'); renderLoans(); updateDashboard();
+}
+
+function cycleStatus(id) {
+  const order = ['Pending','Approved','Rejected','Completed'];
+  const l = loans.find(x=>x.id===id);
+  if (!l) return;
+  l.status = order[(order.indexOf(l.status)+1)%order.length];
+  save(); renderLoans();
+  toast(`Status → ${l.status}`,'info');
+}
+
+function confirmDelete(id) {
+  activeId = id;
+  openModal('confirmDel');
+  document.getElementById('confirmDelBtn').onclick = () => {
+    loans = loans.filter(l=>l.id!==activeId);
+    save(); closeModal('confirmDel'); renderLoans(); updateDashboard();
+    toast('Loan deleted','error');
+  };
+}
+
+function calcPreview() {
+  const p = parseFloat(document.getElementById('f-principal').value);
+  const r = parseFloat(document.getElementById('f-rate').value)||0;
+  const m = parseInt(document.getElementById('f-duration').value);
+  const preview = document.getElementById('addPreview');
+  if (!p||!m) { preview.style.display='none'; return; }
+  const monthly = calcEMI(p,r,m), total = monthly*m;
+  preview.style.display='block';
+  document.getElementById('pv-monthly').textContent  = fmtFull(monthly);
+  document.getElementById('pv-total').textContent    = fmtFull(total);
+  document.getElementById('pv-interest').textContent = fmtFull(total-p);
+}
+
+function addLoan() {
+  const name      = document.getElementById('f-name').value.trim();
+  const age       = parseInt(document.getElementById('f-age').value);
+  const status    = document.getElementById('f-status').value;
+  const principal = parseFloat(document.getElementById('f-principal').value);
+  const rate      = parseFloat(document.getElementById('f-rate').value)||0;
+  const duration  = parseInt(document.getElementById('f-duration').value);
+  const issued    = document.getElementById('f-date').value||today();
+  if (!name)                     { toast('Enter borrower name','error'); return; }
+  if (!age||age<18||age>100)     { toast('Age must be 18–100','error'); return; }
+  if (!principal||principal<100) { toast('Principal must be at least $100','error'); return; }
+  if (!duration||duration<1)     { toast('Duration must be at least 1 month','error'); return; }
+  const monthly = calcEMI(principal,rate,duration), total = monthly*duration;
+  loans.push({id:nextId++,name,age,principal,interestRate:rate,duration,monthlyPayment:monthly,totalAmount:total,balance:total,status,dateIssued:issued,payments:[]});
+  save(); clearAddForm();
+  toast(`Loan for ${name} saved!`,'success');
+  showPage('loans');
+}
+
+function clearAddForm() {
+  ['f-name','f-age','f-principal','f-rate','f-duration'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-date').value=''; document.getElementById('f-status').value='Pending';
+  document.getElementById('addPreview').style.display='none';
+}
+
+function updateCalc() {
+  const p = parseFloat(document.getElementById('c-principal').value);
+  const r = parseFloat(document.getElementById('c-rate').value)||0;
+  const m = parseInt(document.getElementById('c-duration').value);
+  document.getElementById('c-dur-label').textContent = m+' months';
+  const res = document.getElementById('calcResult');
+  if (!p||!m) { res.style.display='none'; return; }
+  const monthly=calcEMI(p,r,m), total=monthly*m, interest=total-p;
+  const eac = p>0?((interest/p)/(m/12)*100).toFixed(2):0;
+  res.style.display='block';
+  document.getElementById('c-monthly').textContent  = fmtFull(monthly);
+  document.getElementById('c-total').textContent    = fmtFull(total);
+  document.getElementById('c-interest').textContent = fmtFull(interest);
+  document.getElementById('c-eac').textContent      = eac+'% /yr';
+}
+
+function useCalcValues() {
+  document.getElementById('f-principal').value = document.getElementById('c-principal').value;
+  document.getElementById('f-rate').value      = document.getElementById('c-rate').value;
+  document.getElementById('f-duration').value  = document.getElementById('c-duration').value;
+  showPage('add'); calcPreview();
+  toast('Values sent to Add Loan →','info');
+}
+
+function exportCSV() {
+  if (!loans.length) { toast('No loans to export','error'); return; }
+  const header = 'ID,Name,Age,Principal,Interest Rate,Duration (months),Total Amount,Balance,Status,Date Issued,Monthly Payment';
+  const rows   = loans.map(l=>`${l.id},"${l.name}",${l.age},${l.principal.toFixed(2)},${l.interestRate.toFixed(2)},${l.duration},${l.totalAmount.toFixed(2)},${l.balance.toFixed(2)},${l.status},${l.dateIssued},${l.monthlyPayment.toFixed(2)}`);
+  const blob   = new Blob([[header,...rows].join('\n')],{type:'text/csv'});
+  const a      = document.createElement('a');
+  a.href       = URL.createObjectURL(blob);
+  a.download   = `loans_export_${today()}.csv`;
+  a.click();
+  toast('CSV exported!','success');
+}
+
+function importCSV(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const lines    = e.target.result.split('\n').filter(l=>l.trim());
+      const imported = [];
+      for (let i=1;i<lines.length;i++) {
+        const v = lines[i].match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g)?.map(x=>x.replace(/^"|"$/g,''));
+        if (!v||v.length<11) continue;
+        imported.push({id:nextId++,name:v[1],age:parseInt(v[2]),principal:parseFloat(v[3]),interestRate:parseFloat(v[4]),duration:parseInt(v[5]),totalAmount:parseFloat(v[6]),balance:parseFloat(v[7]),status:v[8],dateIssued:v[9],monthlyPayment:parseFloat(v[10]),payments:[]});
+      }
+      if (!imported.length) { toast('No valid rows found in CSV','error'); return; }
+      loans.push(...imported); save();
+      toast(`Imported ${imported.length} loan(s)!`,'success');
+      updateDashboard(); renderLoans();
+    } catch(err) { toast('Error reading CSV','error'); }
+  };
+  reader.readAsText(file); input.value='';
+}
+
+loadData();
+document.getElementById('f-date').value = today();
+updateDashboard();
+</script>
+</body>
+</html>

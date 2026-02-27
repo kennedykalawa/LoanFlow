@@ -553,7 +553,7 @@ int main() {
     int choice;
     
     printf("\n╔═══════════════════════════════════════════════════════════════╗\n");
-    printf("║           ADVANCED LOAN MANAGEMENT SYSTEM v2.0                ║\n");
+    printf("║           ADVANCED LOAN MANAGEMENT SYSTEM v1.0                ║\n");
     printf("╚═══════════════════════════════════════════════════════════════╝\n");
     
     do {
